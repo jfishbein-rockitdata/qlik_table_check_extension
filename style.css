@@ -1,26 +1,51 @@
 /* Row Checker (Decorator) v2.3 */
+
 .rd-row-checker-target .rd-check-cell {
-  width: var(--rd-check-col-width, 16px);
-  min-width: var(--rd-check-col-width, 16px);
-  max-width: var(--rd-check-col-width, 16px);
-  text-align: center;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: var(--rd-check-width, 32px) !important;
+  min-width: var(--rd-check-width, 32px) !important;
+  max-width: var(--rd-check-width, 32px) !important;
+  flex: 0 0 var(--rd-check-width, 32px) !important;
   box-sizing: border-box;
-  padding: 0 1px;
-  position: sticky;
-  left: 0;
-  background: inherit;
-  z-index: 1;
+  padding: 0;
 }
 .rd-row-checker-target .rd-check-header { font-weight: 600; opacity: .6; }
-.rd-row-checker-target .rd-check { pointer-events: auto; }
+.rd-row-checker-target .rd-check {
+  pointer-events: auto;
+  margin: 0;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--rd-check-color, #4caf50);
+  border-radius: 3px;
+  background: #fff;
+  position: relative;
+  cursor: pointer;
+}
+.rd-row-checker-target .rd-check:checked {
+  background: var(--rd-check-color, #4caf50);
+}
+.rd-row-checker-target .rd-check:checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 4px;
+  height: 8px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
 .rd-row-checker-target .rd-checked-row {
-  background: var(--rd-check-color, rgba(76,175,80,0.25)) !important;
+  background: var(--rd-check-bg, rgba(76,175,80,0.25)) !important;
   outline: 1px solid rgba(0,0,0,.1);
 }
 
 /* Collapse helper in analysis */
 .rd-helper.rd-helper-hide {
-  display: block !important;
+  display: none !important;
   height: 0 !important;
   min-height: 0 !important;
   overflow: hidden !important;
