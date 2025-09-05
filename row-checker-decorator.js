@@ -73,7 +73,7 @@ define(["qlik", "jquery"], function (qlik, $) {
         if ($row.is('tr')) $first = $('<th class="rd-check-cell rd-check-header" scope="col"></th>');
         $chk = $first.prependTo($row);
       }
-      $chk.css({ width: colWidth, minWidth: colWidth, maxWidth: colWidth });
+      $chk.css({ width: colWidth, minWidth: colWidth, maxWidth: colWidth, flex: '0 0 ' + colWidth });
     });
   }
 
@@ -89,7 +89,7 @@ define(["qlik", "jquery"], function (qlik, $) {
         $row.prepend($cell);
       }
       // Apply width every time so property changes take effect
-      $cell.css({ width: colWidth, minWidth: colWidth, maxWidth: colWidth });
+      $cell.css({ width: colWidth, minWidth: colWidth, maxWidth: colWidth, flex: '0 0 ' + colWidth });
 
       var $cb = $cell.find('.rd-check');
       if ($cb.length === 0) {
@@ -113,20 +113,19 @@ define(["qlik", "jquery"], function (qlik, $) {
 
   function bindDelegatedHandlers($grid, checkedSet, appId, objId) {
     // One-time delegated handler so all current/future checkboxes are responsive
-    $grid.off('click.rd').on('click.rd', '.rd-check', function (e) {
-      e.preventDefault(); e.stopPropagation();
+    $grid.off('change.rd').on('change.rd', '.rd-check', function (e) {
+      e.stopPropagation();
       var $cb = $(this);
       var $row = $cb.closest('[role="row"], tr');
       var sig = $row.attr('data-row-signature') || computeSignature($row);
       if (!sig) return;
-      if (checkedSet.has(sig)) {
-        checkedSet.delete(sig);
-        $row.removeClass('rd-checked-row');
-        $cb.prop('checked', false);
-      } else {
+      var isChecked = $cb.is(':checked');
+      if (isChecked) {
         checkedSet.add(sig);
         $row.addClass('rd-checked-row');
-        $cb.prop('checked', true);
+      } else {
+        checkedSet.delete(sig);
+        $row.removeClass('rd-checked-row');
       }
       saveChecked(appId, objId, checkedSet);
     });
@@ -168,6 +167,7 @@ define(["qlik", "jquery"], function (qlik, $) {
       var tableId = props.tableId || "";
       var checkColor = props.checkColor || "rgba(76,175,80,0.25)";
       var colWidth = props.checkColWidth || "16px";
+      if (/^\d+$/.test(colWidth)) colWidth += "px";
       var hideInAnalysis = (props.hideInAnalysis !== false);
 
       // Collapse helper in analysis
@@ -183,8 +183,11 @@ define(["qlik", "jquery"], function (qlik, $) {
 
       var $grid = findGridRoot($target);
       $target.addClass('rd-row-checker-target');
-      try { ($grid.get(0) || $target.get(0)).style.setProperty('--rd-check-color', checkColor); } catch(e){}
-      try { ($grid.get(0) || $target.get(0)).style.setProperty('--rd-check-col-width', colWidth); } catch(e){}
+      try {
+        var el = ($grid.get(0) || $target.get(0));
+        el.style.setProperty('--rd-check-color', checkColor);
+        el.style.setProperty('--rd-check-col-width', colWidth);
+      } catch(e){}
 
       var app = qlik.currApp && qlik.currApp(this);
       var appId = (app && app.model && app.model.id) || (app && app.id) || "app";

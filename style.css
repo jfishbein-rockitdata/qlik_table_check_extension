@@ -1,9 +1,12 @@
 /* Row Checker (Decorator) v2.3 */
 .rd-row-checker-target .rd-check-cell {
-  width: var(--rd-check-col-width, 16px);
-  min-width: var(--rd-check-col-width, 16px);
-  max-width: var(--rd-check-col-width, 16px);
-  text-align: center;
+  width: var(--rd-check-col-width, 16px) !important;
+  min-width: var(--rd-check-col-width, 16px) !important;
+  max-width: var(--rd-check-col-width, 16px) !important;
+  flex: 0 0 var(--rd-check-col-width, 16px) !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   box-sizing: border-box;
   padding: 0 1px;
   position: sticky;
@@ -12,7 +15,11 @@
   z-index: 1;
 }
 .rd-row-checker-target .rd-check-header { font-weight: 600; opacity: .6; }
-.rd-row-checker-target .rd-check { pointer-events: auto; }
+.rd-row-checker-target .rd-check {
+  pointer-events: auto;
+  accent-color: var(--rd-check-color, #4caf50);
+  margin: 0;
+}
 .rd-row-checker-target .rd-checked-row {
   background: var(--rd-check-color, rgba(76,175,80,0.25)) !important;
   outline: 1px solid rgba(0,0,0,.1);
@@ -20,7 +27,7 @@
 
 /* Collapse helper in analysis */
 .rd-helper.rd-helper-hide {
-  display: block !important;
+  display: none !important;
   height: 0 !important;
   min-height: 0 !important;
   overflow: hidden !important;
