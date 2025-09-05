@@ -73,6 +73,18 @@ define(["qlik", "jquery"], function (qlik, $) {
     return 'rgba(' + r + ',' + g + ',' + b + ',' + (alpha == null ? 1 : alpha) + ')';
   }
 
+  function normalizeHex(hex) {
+    var h = (hex || "").trim();
+    if (!h) return "#4caf50";
+    if (h[0] !== "#") h = "#" + h;
+    h = h.replace(/[^#0-9A-Fa-f]/g, "");
+    if (h.length === 4) {
+      h = "#" + h[1] + h[1] + h[2] + h[2] + h[3] + h[3];
+    }
+    if (h.length !== 7) return "#4caf50";
+    return h;
+  }
+
   function ensureHeaderCheckboxCell($root) {
     var $rows = $root.find('[role="row"], tr').filter(function () { return isHeaderRow($(this)); });
     var $header = $rows.first();
@@ -84,8 +96,11 @@ define(["qlik", "jquery"], function (qlik, $) {
       if ($header.is('tr')) $first = $('<th class="rd-check-cell rd-check-header" scope="col"></th>');
       $chk = $first.prependTo($header);
     }
+    if ($chk.find('.rd-check-wrap').length === 0) {
+      $('<div class="rd-check-wrap"></div>').appendTo($chk);
+    }
     if ($chk.find('.rd-check').length === 0) {
-      $('<input type="checkbox" class="rd-check rd-check-header" aria-label="Toggle all rows">').appendTo($chk);
+      $('<input type="checkbox" class="rd-check rd-check-header" aria-label="Toggle all rows">').appendTo($chk.find('.rd-check-wrap'));
     }
   }
 
@@ -100,10 +115,13 @@ define(["qlik", "jquery"], function (qlik, $) {
         if ($row.is('tr')) $cell = $('<td class="rd-check-cell"></td>');
         $row.prepend($cell);
       }
+      if ($cell.find('.rd-check-wrap').length === 0) {
+        $('<div class="rd-check-wrap"></div>').appendTo($cell);
+      }
 
       var $cb = $cell.find('.rd-check');
       if ($cb.length === 0) {
-        $cb = $('<input class="rd-check" type="checkbox" aria-label="Mark row">').appendTo($cell);
+        $cb = $('<input class="rd-check" type="checkbox" aria-label="Mark row">').appendTo($cell.find('.rd-check-wrap'));
       }
 
       // Sync state from storage
@@ -205,7 +223,7 @@ define(["qlik", "jquery"], function (qlik, $) {
       var mode = getModeSafe();
       var props = layout.props || {};
       var tableId = props.tableId || "";
-      var checkColor = props.checkColor || "#4caf50";
+      var checkColor = normalizeHex(props.checkColor || "#4caf50");
       var checkBg = hexToRgba(checkColor, 0.25);
       var hideInAnalysis = (props.hideInAnalysis !== false);
 
