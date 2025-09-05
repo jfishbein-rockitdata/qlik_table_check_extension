@@ -74,19 +74,19 @@ define(["qlik", "jquery"], function (qlik, $) {
   }
 
   function ensureHeaderCheckboxCell($root) {
-    $root.find('[role="row"], tr').each(function () {
-      var $row = $(this);
-      if (!isHeaderRow($row)) return;
-      var $chk = $row.children('.rd-check-cell');
-      if ($chk.length === 0) {
-        var $first = $('<div class="rd-check-cell rd-check-header" role="columnheader" aria-label="Marked"></div>');
-        if ($row.is('tr')) $first = $('<th class="rd-check-cell rd-check-header" scope="col"></th>');
-        $chk = $first.prependTo($row);
-      }
-      if ($chk.find('.rd-check').length === 0) {
-        $('<input type="checkbox" class="rd-check rd-check-header" aria-label="Toggle all rows">').appendTo($chk);
-      }
-    });
+    var $rows = $root.find('[role="row"], tr').filter(function () { return isHeaderRow($(this)); });
+    var $header = $rows.first();
+    $rows.not($header).find('.rd-check-cell').remove();
+    if (!$header.length) return;
+    var $chk = $header.children('.rd-check-cell');
+    if ($chk.length === 0) {
+      var $first = $('<div class="rd-check-cell rd-check-header" role="columnheader" aria-label="Marked"></div>');
+      if ($header.is('tr')) $first = $('<th class="rd-check-cell rd-check-header" scope="col"></th>');
+      $chk = $first.prependTo($header);
+    }
+    if ($chk.find('.rd-check').length === 0) {
+      $('<input type="checkbox" class="rd-check rd-check-header" aria-label="Toggle all rows">').appendTo($chk);
+    }
   }
 
   function injectCheckboxes($root, checkedSet, appId, objId) {
@@ -142,7 +142,7 @@ define(["qlik", "jquery"], function (qlik, $) {
     }
   }
 
-  function bindDelegatedHandlers($grid, checkedSet, appId, objId) {
+  function bindDelegatedHandlers($grid, checkedSet, appId, objId, burst) {
     // One-time delegated handler so all current/future checkboxes are responsive
     $grid.off('change.rd').on('change.rd', '.rd-check', function (e) {
       e.stopPropagation();
@@ -152,6 +152,7 @@ define(["qlik", "jquery"], function (qlik, $) {
         setAllRows($grid, checkedSet, chk);
         saveChecked(appId, objId, checkedSet);
         syncHeaderCheckbox($grid, checkedSet);
+        burst && burst();
         return;
       }
       var $row = $cb.closest('[role="row"], tr');
@@ -167,6 +168,7 @@ define(["qlik", "jquery"], function (qlik, $) {
       }
       saveChecked(appId, objId, checkedSet);
       syncHeaderCheckbox($grid, checkedSet);
+      burst && burst();
     });
   }
 
@@ -209,20 +211,32 @@ define(["qlik", "jquery"], function (qlik, $) {
 
       // Collapse helper in analysis (hide container as well)
       var $containers = $element.parents().addBack().filter('.qv-object, .qv-object-wrapper, .qv-visualization, .object');
+      if (!$containers.length) $containers = $element;
       $containers.addClass('rd-helper');
-      if (hideInAnalysis && mode !== 'edit') { $containers.addClass('rd-helper-hide'); } else { $containers.removeClass('rd-helper-hide'); }
+      if (hideInAnalysis && mode !== 'edit') { $containers.addClass('rd-helper-hide').hide(); } else { $containers.removeClass('rd-helper-hide').show(); }
 
+      var self = this;
       var $target = findTarget(tableId);
       if (!$target || !$target.length) {
+        if (!self._rdRetry) {
+          self._rdRetry = setInterval(function(){ self.paint($element, layout); }, 1000);
+        }
         if (mode === "edit") $element.html('<div class="rd-hint">Row Checker: set a valid Target Table Object ID. Looking for: ' + (tableId || '(none)') + '</div>');
         else $element.empty();
         return (qlik.Promise && qlik.Promise.resolve) ? qlik.Promise.resolve() : Promise.resolve();
       }
+      if (self._rdRetry) { clearInterval(self._rdRetry); self._rdRetry = null; }
+
+      if (self._rdPrevTarget && self._rdPrevTarget.get(0) !== $target.get(0)) {
+        try { self._rdPrevTarget.removeClass('rd-row-checker-target'); self._rdPrevTarget.find('.rd-check-cell').remove(); } catch(e){}
+      }
+      self._rdPrevTarget = $target;
 
       var $grid = findGridRoot($target);
       $target.addClass('rd-row-checker-target');
       try {
-        [$grid.get(0), $target.get(0)].forEach(function(el){ if (el) { el.style.setProperty('--rd-check-color', checkColor); el.style.setProperty('--rd-check-bg', checkBg); } });
+        var checkWidth = 32;
+        [$grid.get(0), $target.get(0)].forEach(function(el){ if (el) { el.style.setProperty('--rd-check-color', checkColor); el.style.setProperty('--rd-check-bg', checkBg); el.style.setProperty('--rd-check-width', checkWidth + 'px'); } });
       } catch(e){}
 
       var app = qlik.currApp && qlik.currApp(this);
@@ -234,10 +248,9 @@ define(["qlik", "jquery"], function (qlik, $) {
       burst();
 
       // Delegated handlers (bind once)
-      bindDelegatedHandlers($grid, checked, appId, tableId);
+      bindDelegatedHandlers($grid, checked, appId, tableId, burst);
 
       // Observers
-      var self = this;
       if (self._rdObs1) try { self._rdObs1.disconnect(); } catch(e){}
       if (self._rdObs2) try { self._rdObs2.disconnect(); } catch(e){}
       if (self._rdResize) try { self._rdResize.disconnect(); } catch(e){}
@@ -265,6 +278,7 @@ define(["qlik", "jquery"], function (qlik, $) {
           try { obs2 && obs2.disconnect(); } catch(e){}
           try { self._rdResize && self._rdResize.disconnect(); } catch(e){}
           try { clearInterval(self._rdInterval); } catch(e){}
+          try { clearInterval(self._rdRetry); self._rdRetry = null; } catch(e){}
           try { $grid.off('click.rd'); } catch(e){}
         });
       }

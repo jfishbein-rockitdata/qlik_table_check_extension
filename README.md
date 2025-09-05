@@ -5,6 +5,7 @@
  - **Responsive checks**: delegated click handling on the table grid → events work immediately even after Qlik re-renders rows.
  - **Header toggle**: single checkbox in the header reflects row selections and can clear them all.
  - **Hide works**: helper collapses in analysis mode; no visible frame.
+ - **Hex color & width**: checkbox color and column width use CSS variables for consistent styling.
 
 ## Usage
 1. Upload ZIP → Extensions.
