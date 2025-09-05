@@ -104,7 +104,7 @@ define(["qlik", "jquery"], function (qlik, $) {
     }
   }
 
-  function injectCheckboxes($root, checkedSet, appId, objId, checkColor) {
+  function injectCheckboxes($root, checkedSet, appId, objId) {
     $root.find('[role="row"], tr').each(function () {
       var $row = $(this);
       if (isHeaderRow($row)) return;
@@ -123,8 +123,8 @@ define(["qlik", "jquery"], function (qlik, $) {
       if ($cb.length === 0) {
         $cb = $('<input class="rd-check" type="checkbox" aria-label="Mark row">').appendTo($cell.find('.rd-check-wrap'));
       }
-      $cb.css('border-color', checkColor);
-      if ($cb.is(':checked')) { $cb.css('background', checkColor); } else { $cb.css('background', '#fff'); }
+      // remove any inline styling so CSS variables control appearance
+      $cb.attr('style', '');
 
       // Sync state from storage
       var sig = $row.attr('data-row-signature');
@@ -135,20 +135,14 @@ define(["qlik", "jquery"], function (qlik, $) {
     });
   }
 
-  function refresh($grid, checkedSet, appId, objId, checkColor) {
+  function refresh($grid, checkedSet, appId, objId) {
     if (!$grid || !$grid.length) return;
     ensureHeaderCheckboxCell($grid);
-    injectCheckboxes($grid, checkedSet, appId, objId, checkColor);
+    injectCheckboxes($grid, checkedSet, appId, objId);
     syncHeaderCheckbox($grid, checkedSet);
-    var $hdrCb = $grid.find('.rd-check-header .rd-check');
-    if ($hdrCb.length) {
-      var chk = $hdrCb.is(':checked');
-      $hdrCb.css('border-color', checkColor);
-      $hdrCb.css('background', chk ? checkColor : '#fff');
-    }
   }
 
-  function setAllRows($grid, checkedSet, checked, checkColor) {
+  function setAllRows($grid, checkedSet, checked) {
     $grid.find('[role="row"], tr').each(function () {
       var $row = $(this);
       if (isHeaderRow($row)) return;
@@ -157,8 +151,6 @@ define(["qlik", "jquery"], function (qlik, $) {
       if (!sig) { sig = computeSignature($row); $row.attr('data-row-signature', sig); }
       if (checked) { checkedSet.add(sig); } else { checkedSet.delete(sig); }
       $cb.prop('checked', checked);
-      $cb.css('background', checked ? checkColor : '#fff');
-      $cb.css('border-color', checkColor);
       $row.toggleClass('rd-checked-row', checked);
     });
   }
@@ -170,16 +162,14 @@ define(["qlik", "jquery"], function (qlik, $) {
     }
   }
 
-  function bindDelegatedHandlers($grid, checkedSet, appId, objId, burst, checkColor) {
+  function bindDelegatedHandlers($grid, checkedSet, appId, objId, burst) {
     // One-time delegated handler so all current/future checkboxes are responsive
     $grid.off('change.rd').on('change.rd', '.rd-check', function (e) {
       e.stopPropagation();
       var $cb = $(this);
       if ($cb.closest('.rd-check-header').length) {
         var chk = $cb.is(':checked');
-        setAllRows($grid, checkedSet, chk, checkColor);
-        $cb.css('border-color', checkColor);
-        $cb.css('background', chk ? checkColor : '#fff');
+        setAllRows($grid, checkedSet, chk);
         saveChecked(appId, objId, checkedSet);
         syncHeaderCheckbox($grid, checkedSet);
         burst && burst();
@@ -196,8 +186,6 @@ define(["qlik", "jquery"], function (qlik, $) {
         checkedSet.delete(sig);
         $row.removeClass('rd-checked-row');
       }
-      $cb.css('background', isChecked ? checkColor : '#fff');
-      $cb.css('border-color', checkColor);
       saveChecked(appId, objId, checkedSet);
       syncHeaderCheckbox($grid, checkedSet);
       burst && burst();
@@ -227,6 +215,29 @@ define(["qlik", "jquery"], function (qlik, $) {
           items: {
             tableId: { ref: "props.tableId", type: "string", label: "Target Table Object ID", expression: "optional" },
             checkColor: { ref: "props.checkColor", type: "string", label: "Check Color (hex)", defaultValue: "#4caf50" },
+            checkAlign: {
+              ref: "props.checkAlign",
+              type: "string",
+              component: "dropdown",
+              label: "Checkbox Alignment",
+              defaultValue: "center",
+              options: [
+                { value: "left", label: "Left" },
+                { value: "center", label: "Center" },
+                { value: "right", label: "Right" }
+              ]
+            },
+            checkPosition: {
+              ref: "props.checkPosition",
+              type: "string",
+              component: "dropdown",
+              label: "Checkbox Column Position",
+              defaultValue: "left",
+              options: [
+                { value: "left", label: "Left" },
+                { value: "right", label: "Right" }
+              ]
+            },
             hideInAnalysis: { ref: "props.hideInAnalysis", type: "boolean", label: "Hide this helper in analysis mode", defaultValue: true }
           }
         }
@@ -239,6 +250,8 @@ define(["qlik", "jquery"], function (qlik, $) {
       var tableId = props.tableId || "";
       var checkColor = normalizeHex(props.checkColor || "#4caf50");
       var checkBg = hexToRgba(checkColor, 0.25);
+      var align = (props.checkAlign || 'center').toLowerCase();
+      var position = (props.checkPosition || 'left').toLowerCase();
       var hideInAnalysis = (props.hideInAnalysis !== false);
 
       // Collapse helper in analysis (hide container as well)
@@ -268,19 +281,27 @@ define(["qlik", "jquery"], function (qlik, $) {
       $target.addClass('rd-row-checker-target');
       try {
         var checkWidth = 32;
-        [$grid.get(0), $target.get(0)].forEach(function(el){ if (el) { el.style.setProperty('--rd-check-color', checkColor); el.style.setProperty('--rd-check-bg', checkBg); el.style.setProperty('--rd-check-width', checkWidth + 'px'); } });
+        var order = position === 'right' ? 9999 : -1;
+        var justify = align === 'left' ? 'flex-start' : (align === 'right' ? 'flex-end' : 'center');
+        [$grid.get(0), $target.get(0)].forEach(function(el){ if (el) {
+          el.style.setProperty('--rd-check-color', checkColor);
+          el.style.setProperty('--rd-check-bg', checkBg);
+          el.style.setProperty('--rd-check-width', checkWidth + 'px');
+          el.style.setProperty('--rd-check-order', order);
+          el.style.setProperty('--rd-check-justify', justify);
+        } });
       } catch(e){}
 
       var app = qlik.currApp && qlik.currApp(this);
       var appId = (app && app.model && app.model.id) || (app && app.id) || "app";
       var checked = loadChecked(appId, tableId);
 
-      var doRefresh = function () { refresh($grid, checked, appId, tableId, checkColor); };
+      var doRefresh = function () { refresh($grid, checked, appId, tableId); };
       var burst = debouncedBurst(doRefresh);
       burst();
 
       // Delegated handlers (bind once)
-      bindDelegatedHandlers($grid, checked, appId, tableId, burst, checkColor);
+      bindDelegatedHandlers($grid, checked, appId, tableId, burst);
 
       // Observers
       if (self._rdObs1) try { self._rdObs1.disconnect(); } catch(e){}
