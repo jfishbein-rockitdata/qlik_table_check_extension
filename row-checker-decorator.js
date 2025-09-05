@@ -73,6 +73,9 @@ define(["qlik", "jquery"], function (qlik, $) {
         if ($row.is('tr')) $first = $('<th class="rd-check-cell rd-check-header" scope="col"></th>');
         $chk = $first.prependTo($row);
       }
+      if ($chk.find('.rd-uncheck-all').length === 0) {
+        $('<button type="button" class="rd-uncheck-all" title="Uncheck all" aria-label="Uncheck all">×</button>').appendTo($chk);
+      }
       $chk.css({ width: colWidth, minWidth: colWidth, maxWidth: colWidth, flex: '0 0 ' + colWidth });
     });
   }
@@ -129,6 +132,14 @@ define(["qlik", "jquery"], function (qlik, $) {
       }
       saveChecked(appId, objId, checkedSet);
     });
+
+    $grid.off('click.rdUncheck').on('click.rdUncheck', '.rd-uncheck-all', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      checkedSet.clear();
+      $grid.find('.rd-check:checked').prop('checked', false).closest('[role="row"], tr').removeClass('rd-checked-row');
+      saveChecked(appId, objId, checkedSet);
+    });
   }
 
   function debouncedBurst(doRefresh) {
@@ -170,9 +181,11 @@ define(["qlik", "jquery"], function (qlik, $) {
       if (/^\d+$/.test(colWidth)) colWidth += "px";
       var hideInAnalysis = (props.hideInAnalysis !== false);
 
-      // Collapse helper in analysis
-      $element.addClass("rd-helper");
-      if (hideInAnalysis && mode !== "edit") $element.addClass("rd-helper-hide"); else $element.removeClass("rd-helper-hide");
+      // Collapse helper in analysis (hide container as well)
+      var $container = $element.closest('.qv-object, .qv-visualization, .object');
+      $element.addClass('rd-helper');
+      $container.addClass('rd-helper');
+      if (hideInAnalysis && mode !== 'edit') { $element.addClass('rd-helper-hide'); $container.addClass('rd-helper-hide'); } else { $element.removeClass('rd-helper-hide'); $container.removeClass('rd-helper-hide'); }
 
       var $target = findTarget(tableId);
       if (!$target || !$target.length) {
@@ -184,9 +197,7 @@ define(["qlik", "jquery"], function (qlik, $) {
       var $grid = findGridRoot($target);
       $target.addClass('rd-row-checker-target');
       try {
-        var el = ($grid.get(0) || $target.get(0));
-        el.style.setProperty('--rd-check-color', checkColor);
-        el.style.setProperty('--rd-check-col-width', colWidth);
+        [$grid.get(0), $target.get(0)].forEach(function(el){ if (el) { el.style.setProperty('--rd-check-color', checkColor); el.style.setProperty('--rd-check-col-width', colWidth); } });
       } catch(e){}
 
       var app = qlik.currApp && qlik.currApp(this);
