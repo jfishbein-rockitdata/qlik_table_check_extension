@@ -1,6 +1,6 @@
 {
-  "name": "row-check-table-augment",
-  "displayName": "Row Check Table Augment",
+  "name": "Table Row Check",
+  "displayName": "Table Row Check",
   "description": "Decorates a native Straight Table (by Object ID) with a session-only checkbox column. Hides itself in analysis mode.",
   "author": "rockITdata",
   "type": "visualization",
