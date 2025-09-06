@@ -85,7 +85,7 @@ define(["qlik", "jquery"], function (qlik, $) {
     return h;
   }
 
-  function ensureHeaderCheckboxCell($root) {
+  function ensureHeaderCheckboxCell($root, position, justify, checkColor) {
     var $rows = $root.find('[role="row"], tr').filter(function () { return isHeaderRow($(this)); });
     var $header = $rows.first();
     $rows.not($header).find('.rd-check-cell').remove();
@@ -94,17 +94,23 @@ define(["qlik", "jquery"], function (qlik, $) {
     if ($chk.length === 0) {
       var $first = $('<div class="rd-check-cell rd-check-header" role="columnheader" aria-label="Marked"></div>');
       if ($header.is('tr')) $first = $('<th class="rd-check-cell rd-check-header" scope="col"></th>');
-      $chk = $first.appendTo($header);
+      $chk = position === 'right' ? $first.appendTo($header) : $first.prependTo($header);
+    } else {
+      // move existing cell if position changed
+      if (position === 'right') { $chk.appendTo($header); } else { $chk.prependTo($header); }
     }
     if ($chk.find('.rd-check-wrap').length === 0) {
       $('<div class="rd-check-wrap"></div>').appendTo($chk);
     }
+    $chk.css({ 'justify-content': justify });
+    var $wrap = $chk.find('.rd-check-wrap').css({ 'justify-content': justify });
     if ($chk.find('.rd-check').length === 0) {
-      $('<input type="checkbox" class="rd-check rd-check-header" aria-label="Toggle all rows">').appendTo($chk.find('.rd-check-wrap'));
+      $('<input type="checkbox" class="rd-check rd-check-header" aria-label="Toggle all rows">').appendTo($wrap);
     }
+    $chk.find('.rd-check').css({ 'border-color': checkColor });
   }
 
-  function injectCheckboxes($root, checkedSet, appId, objId) {
+  function injectCheckboxes($root, checkedSet, appId, objId, position, justify, checkColor) {
     $root.find('[role="row"], tr').each(function () {
       var $row = $(this);
       if (isHeaderRow($row)) return;
@@ -113,36 +119,40 @@ define(["qlik", "jquery"], function (qlik, $) {
       if ($cell.length === 0) {
         $cell = $('<div class="rd-check-cell" role="cell"></div>');
         if ($row.is('tr')) $cell = $('<td class="rd-check-cell"></td>');
-        $row.append($cell);
+        if (position === 'right') { $row.append($cell); } else { $row.prepend($cell); }
+      } else {
+        if (position === 'right') { $cell.appendTo($row); } else { $cell.prependTo($row); }
       }
       if ($cell.find('.rd-check-wrap').length === 0) {
         $('<div class="rd-check-wrap"></div>').appendTo($cell);
       }
+      $cell.css({ 'justify-content': justify });
+      var $wrap = $cell.find('.rd-check-wrap').css({ 'justify-content': justify });
 
       var $cb = $cell.find('.rd-check');
       if ($cb.length === 0) {
-        $cb = $('<input class="rd-check" type="checkbox" aria-label="Mark row">').appendTo($cell.find('.rd-check-wrap'));
+        $cb = $('<input class="rd-check" type="checkbox" aria-label="Mark row">').appendTo($wrap);
       }
-      // remove any inline styling so CSS variables control appearance
-      $cb.attr('style', '');
+      // apply style directly for color updates
+      $cb.css({ 'border-color': checkColor, 'background': $cb.is(':checked') ? checkColor : '#fff' });
 
       // Sync state from storage
       var sig = $row.attr('data-row-signature');
       if (!sig) { sig = computeSignature($row); $row.attr('data-row-signature', sig); }
       var isChecked = sig && checkedSet.has(sig);
       $row.toggleClass('rd-checked-row', !!isChecked);
-      $cb.prop('checked', !!isChecked);
+      $cb.prop('checked', !!isChecked).css({ 'background': isChecked ? checkColor : '#fff' });
     });
   }
 
-  function refresh($grid, checkedSet, appId, objId) {
+  function refresh($grid, checkedSet, appId, objId, position, justify, checkColor) {
     if (!$grid || !$grid.length) return;
-    ensureHeaderCheckboxCell($grid);
-    injectCheckboxes($grid, checkedSet, appId, objId);
+    ensureHeaderCheckboxCell($grid, position, justify, checkColor);
+    injectCheckboxes($grid, checkedSet, appId, objId, position, justify, checkColor);
     syncHeaderCheckbox($grid, checkedSet);
   }
 
-  function setAllRows($grid, checkedSet, checked) {
+  function setAllRows($grid, checkedSet, checked, checkColor) {
     $grid.find('[role="row"], tr').each(function () {
       var $row = $(this);
       if (isHeaderRow($row)) return;
@@ -150,7 +160,7 @@ define(["qlik", "jquery"], function (qlik, $) {
       var sig = $row.attr('data-row-signature');
       if (!sig) { sig = computeSignature($row); $row.attr('data-row-signature', sig); }
       if (checked) { checkedSet.add(sig); } else { checkedSet.delete(sig); }
-      $cb.prop('checked', checked);
+      $cb.prop('checked', checked).css({ 'background': checked ? checkColor : '#fff', 'border-color': checkColor });
       $row.toggleClass('rd-checked-row', checked);
     });
   }
@@ -162,14 +172,14 @@ define(["qlik", "jquery"], function (qlik, $) {
     }
   }
 
-  function bindDelegatedHandlers($grid, checkedSet, appId, objId, burst) {
+  function bindDelegatedHandlers($grid, checkedSet, appId, objId, burst, checkColor) {
     // One-time delegated handler so all current/future checkboxes are responsive
     $grid.off('change.rd').on('change.rd', '.rd-check', function (e) {
       e.stopPropagation();
       var $cb = $(this);
       if ($cb.closest('.rd-check-header').length) {
         var chk = $cb.is(':checked');
-        setAllRows($grid, checkedSet, chk);
+        setAllRows($grid, checkedSet, chk, checkColor);
         saveChecked(appId, objId, checkedSet);
         syncHeaderCheckbox($grid, checkedSet);
         burst && burst();
@@ -182,9 +192,11 @@ define(["qlik", "jquery"], function (qlik, $) {
       if (isChecked) {
         checkedSet.add(sig);
         $row.addClass('rd-checked-row');
+        $cb.css({ 'background': checkColor, 'border-color': checkColor });
       } else {
         checkedSet.delete(sig);
         $row.removeClass('rd-checked-row');
+        $cb.css({ 'background': '#fff', 'border-color': checkColor });
       }
       saveChecked(appId, objId, checkedSet);
       syncHeaderCheckbox($grid, checkedSet);
@@ -296,12 +308,12 @@ define(["qlik", "jquery"], function (qlik, $) {
       var appId = (app && app.model && app.model.id) || (app && app.id) || "app";
       var checked = loadChecked(appId, tableId);
 
-      var doRefresh = function () { refresh($grid, checked, appId, tableId); };
+      var doRefresh = function () { refresh($grid, checked, appId, tableId, position, justify, checkColor); };
       var burst = debouncedBurst(doRefresh);
       burst();
 
       // Delegated handlers (bind once)
-      bindDelegatedHandlers($grid, checked, appId, tableId, burst);
+      bindDelegatedHandlers($grid, checked, appId, tableId, burst, checkColor);
 
       // Observers
       if (self._rdObs1) try { self._rdObs1.disconnect(); } catch(e){}
