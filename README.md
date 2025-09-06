@@ -6,10 +6,12 @@
  - **Header toggle**: single checkbox in the header reflects row selections and can clear them all.
  - **Hide works**: helper collapses in analysis mode; no visible frame.
  - **Hex color & width**: checkbox color and column width use CSS variables for consistent styling.
+ - **Alignment & position**: control checkbox alignment within the cell and whether the column appears on the left or right.
 
 ## Usage
 1. Upload ZIP → Extensions.
 2. Add **Row Checker (Decorator)** to the same sheet as your table.
 3. Set **Target Table Object ID** (e.g., `uYpJm`).
 4. Optional: adjust **Check Color** (hex).
-5. Leave **Hide this helper in analysis mode** enabled.
+5. Optional: tweak **Checkbox Alignment** and **Checkbox Column Position**.
+6. Leave **Hide this helper in analysis mode** enabled.
