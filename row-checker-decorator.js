@@ -135,11 +135,38 @@ define(["qlik", "jquery"], function (qlik, $) {
     });
   }
 
-  function refresh($grid, checkedSet, appId, objId) {
+  function applyStyles($grid, checkColor, checkBg, align, position) {
+    if (!$grid || !$grid.length) return;
+    var justify = align === 'left' ? 'flex-start' : (align === 'right' ? 'flex-end' : 'center');
+    var order = position === 'right' ? 9999 : -1;
+    // Position and alignment
+    $grid.find('.rd-check-cell').each(function () {
+      var $cell = $(this);
+      if (position === 'right') {
+        $cell.appendTo($cell.parent());
+      } else {
+        $cell.prependTo($cell.parent());
+      }
+      this.style.setProperty('--rd-check-color', checkColor);
+      this.style.setProperty('--rd-check-bg', checkBg);
+      this.style.setProperty('--rd-check-justify', justify);
+      this.style.setProperty('--rd-check-order', order);
+    });
+    $grid.find('.rd-check-wrap').each(function () {
+      this.style.setProperty('--rd-check-justify', justify);
+    });
+    // Row highlight
+    $grid.find('.rd-checked-row').each(function () {
+      this.style.setProperty('--rd-check-bg', checkBg);
+    });
+  }
+
+  function refresh($grid, checkedSet, appId, objId, checkColor, checkBg, align, position) {
     if (!$grid || !$grid.length) return;
     ensureHeaderCheckboxCell($grid);
     injectCheckboxes($grid, checkedSet, appId, objId);
     syncHeaderCheckbox($grid, checkedSet);
+    applyStyles($grid, checkColor, checkBg, align, position);
   }
 
   function setAllRows($grid, checkedSet, checked) {
@@ -296,7 +323,7 @@ define(["qlik", "jquery"], function (qlik, $) {
       var appId = (app && app.model && app.model.id) || (app && app.id) || "app";
       var checked = loadChecked(appId, tableId);
 
-      var doRefresh = function () { refresh($grid, checked, appId, tableId); };
+      var doRefresh = function () { refresh($grid, checked, appId, tableId, checkColor, checkBg, align, position); };
       var burst = debouncedBurst(doRefresh);
       burst();
 
