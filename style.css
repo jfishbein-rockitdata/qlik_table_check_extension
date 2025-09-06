@@ -1,66 +1,57 @@
-/* Row Checker (Decorator) v2.3 */
+/* Row Checker (Decorator) v3.0 — stable column insertion */
 
-.rd-row-checker-target .rd-check-cell {
-    width: var(--rd-check-width, 32px) !important;
-    min-width: var(--rd-check-width, 32px) !important;
-    max-width: var(--rd-check-width, 32px) !important;
-    flex: 0 0 var(--rd-check-width, 32px) !important;
-    box-sizing: border-box;
-    padding: 0;
-    order: var(--rd-check-order, -1);
-    display: flex !important;
-    align-items: center !important;
-    justify-content: var(--rd-check-justify, center) !important;
-  }
-  .rd-row-checker-target .rd-check-wrap {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: var(--rd-check-justify, center) !important;
-    width: 100%;
-    height: 100%;
-  }
-.rd-row-checker-target .rd-check-header { font-weight: 600; opacity: .6; }
-.rd-row-checker-target .rd-check {
-  pointer-events: auto;
-  margin: 0;
-  appearance: none;
-  width: 16px;
-  height: 16px;
-  border: 2px solid var(--rd-check-color, #4caf50);
-  border-radius: 3px;
-  background: #fff;
-  position: relative;
-  cursor: pointer;
-}
-.rd-row-checker-target .rd-check:checked {
-  background: var(--rd-check-color, #4caf50);
-}
-.rd-row-checker-target .rd-check:checked::after {
-  content: "";
-  position: absolute;
-  left: 4px;
-  top: 1px;
-  width: 4px;
-  height: 8px;
-  border: solid #fff;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
-.rd-row-checker-target .rd-checked-row {
-  background: var(--rd-check-bg, rgba(76,175,80,0.25)) !important;
-  outline: 1px solid rgba(0,0,0,.1);
-}
-
-/* Collapse helper in analysis */
-.rd-helper.rd-helper-hide {
-  display: none !important;
-  height: 0 !important;
-  min-height: 0 !important;
-  overflow: hidden !important;
-  pointer-events: none !important;
-  border: none !important;
+.rc-target .rc-check-cell {
+  width: var(--rc-width, 28px) !important;
+  min-width: var(--rc-width, 28px) !important;
+  max-width: var(--rc-width, 28px) !important;
+  flex: 0 0 var(--rc-width, 28px) !important;
+  box-sizing: border-box !important;
   padding: 0 !important;
-  margin: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: var(--rc-justify, center) !important;
 }
-.rd-helper.rd-helper-hide * { display: none !important; }
-.rd-hint { font-size: 12px; padding: .5rem; opacity: .7; }
+.rc-target .rc-check-cell .rc-wrap {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: var(--rc-justify, center) !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.rc-target input.rc-check {
+  appearance: none !important;
+  width: 16px !important;
+  height: 16px !important;
+  border: 2px solid var(--rc-color, #4caf50) !important;
+  border-radius: 3px !important;
+  background: #fff !important;
+  margin: 0 !important;
+  cursor: pointer !important;
+  position: relative !important;
+}
+.rc-target input.rc-check:checked {
+  background: var(--rc-color, #4caf50) !important;
+  border-color: var(--rc-color, #4caf50) !important;
+}
+.rc-target input.rc-check:checked::after {
+  content: "" !important;
+  position: absolute !important;
+  left: 4px; top: 1px;
+  width: 4px; height: 8px;
+  border: solid #fff !important;
+  border-width: 0 2px 2px 0 !important;
+  transform: rotate(45deg) !important;
+}
+
+.rc-target .rc-row-checked {
+  background: color-mix(in srgb, var(--rc-color, #4caf50) 18%, transparent) !important;
+}
+@supports not (background: color-mix(in srgb, #000 50%, #fff 50%)) {
+  .rc-target .rc-row-checked { background: rgba(76,175,80,.18) !important; }
+}
+
+/* helper visibility */
+.rc-helper.rc-helper-hide { display:none !important; height:0 !important; overflow:hidden !important; }
+.rc-helper.rc-helper-hide * { display:none !important; }
+.rc-hint { font-size:12px; padding:.5rem; opacity:.7; }

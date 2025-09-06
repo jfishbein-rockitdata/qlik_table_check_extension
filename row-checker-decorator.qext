@@ -1,19 +1,8 @@
 {
-  "name": "Table Row Check",
-  "displayName": "Table Row Check",
-  "description": "Decorates a native Straight Table (by Object ID) with a session-only checkbox column. Hides itself in analysis mode.",
-  "author": "rockITdata",
+  "name": "Row Checker (Decorator)",
+  "description": "Adds a single fixed-width checkbox column to Qlik tables (table or ARIA grid). Position, color, and alignment are reliable.",
   "type": "visualization",
-  "version": "2.3.0",
-  "icon": "extension",
-  "keywords": [
-    "qlik",
-    "extension",
-    "decorator",
-    "checkbox",
-    "row"
-  ],
-  "stylesheet": [
-    "style.css"
-  ]
+  "version": "3.0.0",
+  "icon": "checkbox",
+  "author": "rockITdata"
 }

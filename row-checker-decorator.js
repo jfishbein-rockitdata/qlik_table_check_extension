@@ -1,211 +1,119 @@
+
 define(["qlik", "jquery"], function (qlik, $) {
   "use strict";
 
-  function getModeSafe() {
-    try { if (qlik.navigation && qlik.navigation.getMode) return qlik.navigation.getMode(); } catch (e) {}
-    var cls = document.body ? (document.body.className || "") : "";
-    return /edit/i.test(cls) ? "edit" : "analysis";
+  function getMode() {
+    try { return qlik.navigation.getMode(); } catch (e) {}
+    return /edit/i.test((document.body && document.body.className) || "") ? "edit" : "analysis";
   }
 
-  function findTarget(tableId) {
-    if (!tableId) return $();
-    var candidates = [
-      '[tid="' + tableId + '"]',
-      '.qv-object-' + tableId,
-      '[data-qid="' + tableId + '"]',
-      '[data-cid="' + tableId + '"]',
-      '#' + (window.CSS && CSS.escape ? CSS.escape(tableId) : tableId)
+  function findTarget(id) {
+    if (!id) return $();
+    var sels = [
+      '[tid="'+id+'"]', '.qv-object-'+id, '[data-qid="'+id+'"]', '[data-cid="'+id+'"]',
+      '#' + (window.CSS && CSS.escape ? CSS.escape(id) : id)
     ];
-    for (var i=0; i<candidates.length; i++) {
-      try { var $el = $(candidates[i]).first(); if ($el && $el.length) return $el; } catch (e) {}
-    }
-    var $guess = $('[id*="'+tableId+'"], [data-qid*="'+tableId+'"], [data-cid*="'+tableId+'"]').first();
-    return $guess;
+    for (var i=0; i<sels.length; i++) { try { var $t = $(sels[i]).first(); if ($t && $t.length) return $t; } catch(e){} }
+    return $('[id*="'+id+'"], [data-qid*="'+id+'"], [data-cid*="'+id+'"]').first();
   }
 
-  function findGridRoot($target) {
+  function gridRoot($target) {
     if (!$target || !$target.length) return $();
-    var $g = $target.find('[role="grid"]').first();
-    if ($g.length) return $g;
-    $g = $target.find('table').first();
-    if ($g.length) return $g;
+    var $g = $target.find('[role="grid"]').first(); if ($g.length) return $g;
+    $g = $target.find('table').first(); if ($g.length) return $g;
     return $target;
   }
 
-  function storageKey(appId, objId) { return "rd-row-checker-session::" + appId + "::" + objId; }
-  function loadChecked(appId, objId) { try { return new Set(JSON.parse(sessionStorage.getItem(storageKey(appId,objId))||"[]")); } catch(e){ return new Set(); } }
-  function saveChecked(appId, objId, set) { try { sessionStorage.setItem(storageKey(appId,objId), JSON.stringify(Array.from(set))); } catch(e){} }
+  function isTable($g) { return $g.is('table'); }
 
-  function isHeaderRow($row) {
-    if ($row.closest('thead').length > 0) return true;
-    if ($row.find('[role="columnheader"], .qv-st-header-cell, th').length > 0) return true;
-    var ariaIdx = parseInt($row.attr('aria-rowindex') || "-1", 10);
-    if ($row.attr('role') === 'row' && ariaIdx === 1) return true;
-    return false;
+  function headerRow($g) {
+    var $h = $g.find('[role="rowgroup"][aria-label="Header"] > [role="row"]').first();
+    if ($h.length) return $h;
+    return $g.find('thead > tr').first();
+  }
+  function bodyRows($g) {
+    var $b = $g.find('[role="rowgroup"]:not([aria-label="Header"]) > [role="row"]');
+    if ($b.length) return $b;
+    return $g.find('tbody > tr');
   }
 
-  function computeSignature($row) {
-    var parts = [];
-    $row.children().each(function () {
+  function rowCells($row) {
+    var $c = $row.children('[role="cell"], [role="columnheader"], td, th');
+    if (!$c.length) $c = $row.children();
+    return $c;
+  }
+
+  function computeSig($row) {
+    var acc = [];
+    rowCells($row).each(function(){
       var $c = $(this);
-      if ($c.hasClass('rd-check-cell')) return;
+      if ($c.hasClass('rc-check-cell')) return;
       var t = ($c.text() || "").trim();
-      if (t) parts.push(t);
+      if (t) acc.push(t);
     });
-    if (!parts.length) {
-      $row.find('[role="cell"], .qv-st-data-cell, td, .value').each(function () {
-        var $c = $(this);
-        if ($c.closest('.rd-check-cell').length) return;
-        var txt = ($(this).text() || "").trim();
-        if (txt) parts.push(txt);
-      });
-    }
-    return parts.join("||");
+    return acc.join("||");
   }
 
-  function hexToRgba(hex, alpha) {
-    var h = (hex || '').replace('#','');
-    if (h.length === 3) { h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2]; }
-    if (h.length !== 6) return 'rgba(76,175,80,' + (alpha || 1) + ')';
-    var r = parseInt(h.substr(0,2),16);
-    var g = parseInt(h.substr(2,2),16);
-    var b = parseInt(h.substr(4,2),16);
-    return 'rgba(' + r + ',' + g + ',' + b + ',' + (alpha == null ? 1 : alpha) + ')';
-  }
+  function storageKey(appId, objId){ return "rd-row-checker-session::"+appId+"::"+objId; }
+  function loadSet(appId, objId){ try{ return new Set(JSON.parse(sessionStorage.getItem(storageKey(appId,objId))||"[]")); }catch(e){ return new Set(); } }
+  function saveSet(appId, objId, set){ try{ sessionStorage.setItem(storageKey(appId,objId), JSON.stringify(Array.from(set))); }catch(e){} }
 
-  function normalizeHex(hex) {
-    var h = (hex || "").trim();
-    if (!h) return "#4caf50";
-    if (h[0] !== "#") h = "#" + h;
-    h = h.replace(/[^#0-9A-Fa-f]/g, "");
-    if (h.length === 4) {
-      h = "#" + h[1] + h[1] + h[2] + h[2] + h[3] + h[3];
-    }
-    if (h.length !== 7) return "#4caf50";
-    return h;
-  }
-
-  function ensureHeaderCheckboxCell($root) {
-    var $rows = $root.find('[role="row"], tr').filter(function () { return isHeaderRow($(this)); });
-    var $header = $rows.first();
-    $rows.not($header).find('.rd-check-cell').remove();
-    if (!$header.length) return;
-    var $chk = $header.children('.rd-check-cell');
-    if ($chk.length === 0) {
-      var $first = $('<div class="rd-check-cell rd-check-header" role="columnheader" aria-label="Marked"></div>');
-      if ($header.is('tr')) $first = $('<th class="rd-check-cell rd-check-header" scope="col"></th>');
-      $chk = $first.appendTo($header);
-    }
-    if ($chk.find('.rd-check-wrap').length === 0) {
-      $('<div class="rd-check-wrap"></div>').appendTo($chk);
-    }
-    if ($chk.find('.rd-check').length === 0) {
-      $('<input type="checkbox" class="rd-check rd-check-header" aria-label="Toggle all rows">').appendTo($chk.find('.rd-check-wrap'));
-    }
-  }
-
-  function injectCheckboxes($root, checkedSet, appId, objId) {
-    $root.find('[role="row"], tr').each(function () {
-      var $row = $(this);
-      if (isHeaderRow($row)) return;
-
-      var $cell = $row.children('.rd-check-cell');
-      if ($cell.length === 0) {
-        $cell = $('<div class="rd-check-cell" role="cell"></div>');
-        if ($row.is('tr')) $cell = $('<td class="rd-check-cell"></td>');
-        $row.append($cell);
-      }
-      if ($cell.find('.rd-check-wrap').length === 0) {
-        $('<div class="rd-check-wrap"></div>').appendTo($cell);
-      }
-
-      var $cb = $cell.find('.rd-check');
-      if ($cb.length === 0) {
-        $cb = $('<input class="rd-check" type="checkbox" aria-label="Mark row">').appendTo($cell.find('.rd-check-wrap'));
-      }
-      // remove any inline styling so CSS variables control appearance
-      $cb.attr('style', '');
-
-      // Sync state from storage
-      var sig = $row.attr('data-row-signature');
-      if (!sig) { sig = computeSignature($row); $row.attr('data-row-signature', sig); }
-      var isChecked = sig && checkedSet.has(sig);
-      $row.toggleClass('rd-checked-row', !!isChecked);
-      $cb.prop('checked', !!isChecked);
-    });
-  }
-
-  function refresh($grid, checkedSet, appId, objId) {
-    if (!$grid || !$grid.length) return;
-    ensureHeaderCheckboxCell($grid);
-    injectCheckboxes($grid, checkedSet, appId, objId);
-    syncHeaderCheckbox($grid, checkedSet);
-  }
-
-  function setAllRows($grid, checkedSet, checked) {
-    $grid.find('[role="row"], tr').each(function () {
-      var $row = $(this);
-      if (isHeaderRow($row)) return;
-      var $cb = $row.find('.rd-check');
-      var sig = $row.attr('data-row-signature');
-      if (!sig) { sig = computeSignature($row); $row.attr('data-row-signature', sig); }
-      if (checked) { checkedSet.add(sig); } else { checkedSet.delete(sig); }
-      $cb.prop('checked', checked);
-      $row.toggleClass('rd-checked-row', checked);
-    });
-  }
-
-  function syncHeaderCheckbox($grid, checkedSet) {
-    var $hdr = $grid.find('.rd-check-header .rd-check');
-    if ($hdr.length) {
-      $hdr.prop('checked', checkedSet.size > 0);
-    }
-  }
-
-  function bindDelegatedHandlers($grid, checkedSet, appId, objId, burst) {
-    // One-time delegated handler so all current/future checkboxes are responsive
-    $grid.off('change.rd').on('change.rd', '.rd-check', function (e) {
-      e.stopPropagation();
-      var $cb = $(this);
-      if ($cb.closest('.rd-check-header').length) {
-        var chk = $cb.is(':checked');
-        setAllRows($grid, checkedSet, chk);
-        saveChecked(appId, objId, checkedSet);
-        syncHeaderCheckbox($grid, checkedSet);
-        burst && burst();
-        return;
-      }
-      var $row = $cb.closest('[role="row"], tr');
-      var sig = $row.attr('data-row-signature') || computeSignature($row);
-      if (!sig) return;
-      var isChecked = $cb.is(':checked');
-      if (isChecked) {
-        checkedSet.add(sig);
-        $row.addClass('rd-checked-row');
+  function ensureCell($row, pos, isHeader) {
+    var $cell = $row.children('.rc-check-cell');
+    if (!$cell.length) {
+      // create correct element type
+      if ($row.is('tr')) {
+        $cell = $(isHeader ? '<th class="rc-check-cell" scope="col"></th>' : '<td class="rc-check-cell"></td>');
       } else {
-        checkedSet.delete(sig);
-        $row.removeClass('rd-checked-row');
+        $cell = $(isHeader ? '<div class="rc-check-cell" role="columnheader" aria-label="Marked"></div>' : '<div class="rc-check-cell" role="cell"></div>');
       }
-      saveChecked(appId, objId, checkedSet);
-      syncHeaderCheckbox($grid, checkedSet);
-      burst && burst();
-    });
+      if (pos === 'left') $cell.prependTo($row);
+      else $cell.appendTo($row);
+    } else {
+      // move if needed
+      if (pos === 'left' && $cell.index() !== 0) $cell.prependTo($row);
+      if (pos === 'right' && $cell.index() !== $row.children().length - 1) $cell.appendTo($row);
+    }
+    // inner wrapper
+    if ($cell.children('.rc-wrap').length === 0) { $cell.append('<div class="rc-wrap"></div>'); }
+    var $wrap = $cell.children('.rc-wrap');
+    // checkbox
+    if ($wrap.children('input.rc-check').length === 0) {
+      $wrap.append('<input class="rc-check'+(isHeader?' rc-check-all':'')+'" type="checkbox" aria-label="'+(isHeader?'Toggle all rows':'Mark row')+'">');
+    }
+    return $cell;
   }
 
-  function debouncedBurst(doRefresh) {
-    var t1, t2, t3, t4;
-    return function () {
-      try { doRefresh(); } catch (e) {}
-      clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4);
-      t1 = setTimeout(doRefresh, 50);
-      t2 = setTimeout(doRefresh, 250);
-      t3 = setTimeout(doRefresh, 750);
-      t4 = setTimeout(doRefresh, 1500);
-    };
+  function refresh(self, $grid, set, appId, objId, pos) {
+    if (!$grid || !$grid.length) return;
+    if (self._painting) return;
+    self._painting = true;
+    try {
+      // remove stale injected cells (from previous runs/versions) then rebuild
+      $grid.find('.rc-check-cell').remove();
+
+      var $hdr = headerRow($grid);
+      if ($hdr && $hdr.length) {
+        ensureCell($hdr, pos, true);
+      }
+      bodyRows($grid).each(function(){
+        var $row = $(this);
+        ensureCell($row, pos, false);
+        var sig = $row.attr('data-rc-sig');
+        if (!sig) { sig = computeSig($row); $row.attr('data-rc-sig', sig); }
+        var on = !!(sig && set.has(sig));
+        $row.toggleClass('rc-row-checked', on);
+        $row.find('input.rc-check').prop('checked', on);
+      });
+    } finally {
+      self._painting = false;
+    }
   }
+
+  function debounced(fn){ var t1,t2; return function(){ clearTimeout(t1); clearTimeout(t2); t1=setTimeout(fn,80); t2=setTimeout(fn,260); }; }
 
   return {
-    initialProperties: { version: 2.3 },
+    initialProperties: { version: 3.0 },
     definition: {
       type: "items",
       component: "accordion",
@@ -216,125 +124,94 @@ define(["qlik", "jquery"], function (qlik, $) {
             tableId: { ref: "props.tableId", type: "string", label: "Target Table Object ID", expression: "optional" },
             checkColor: { ref: "props.checkColor", type: "string", label: "Check Color (hex)", defaultValue: "#4caf50" },
             checkAlign: {
-              ref: "props.checkAlign",
-              type: "string",
-              component: "dropdown",
-              label: "Checkbox Alignment",
-              defaultValue: "center",
-              options: [
-                { value: "left", label: "Left" },
-                { value: "center", label: "Center" },
-                { value: "right", label: "Right" }
+              ref: "props.checkAlign", type: "string", component: "dropdown", label: "Checkbox Alignment",
+              defaultValue: "center", options: [
+                {value:"left",label:"Left"}, {value:"center",label:"Center"}, {value:"right",label:"Right"}
               ]
             },
             checkPosition: {
-              ref: "props.checkPosition",
-              type: "string",
-              component: "dropdown",
-              label: "Checkbox Column Position",
-              defaultValue: "left",
-              options: [
-                { value: "left", label: "Left" },
-                { value: "right", label: "Right" }
-              ]
+              ref: "props.checkPosition", type: "string", component: "dropdown", label: "Checkbox Column Position",
+              defaultValue: "left", options: [{value:"left",label:"Left"}, {value:"right",label:"Right"}]
             },
             hideInAnalysis: { ref: "props.hideInAnalysis", type: "boolean", label: "Hide this helper in analysis mode", defaultValue: true }
           }
         }
       }
     },
-    support: { snapshot: false, export: false, exportData: false },
-    paint: function ($element, layout) {
-      var mode = getModeSafe();
-      var props = layout.props || {};
-      var tableId = props.tableId || "";
-      var checkColor = normalizeHex(props.checkColor || "#4caf50");
-      var checkBg = hexToRgba(checkColor, 0.25);
-      var align = (props.checkAlign || 'center').toLowerCase();
-      var position = (props.checkPosition || 'left').toLowerCase();
-      var hideInAnalysis = (props.hideInAnalysis !== false);
+    support: { snapshot:false, export:false, exportData:false },
+    paint: function ($el, layout) {
+      var mode = getMode();
+      var p = layout.props || {};
+      var targetId = (p.tableId || "").toString();
+      var color = (p.checkColor || "#4caf50").trim(); if (color[0] !== "#") color = "#"+color;
+      var align = (p.checkAlign || "center").toLowerCase();
+      var pos = (p.checkPosition || "left").toLowerCase();
+      var hide = (p.hideInAnalysis !== false);
 
-      // Collapse helper in analysis (hide container as well)
-      var $containers = $element.parents().addBack().filter('.qv-object, .qv-object-wrapper, .qv-visualization, .object');
-      if (!$containers.length) $containers = $element;
-      $containers.addClass('rd-helper');
-      if (hideInAnalysis && mode !== 'edit') { $containers.addClass('rd-helper-hide').hide(); } else { $containers.removeClass('rd-helper-hide').show(); }
+      // helper visibility
+      var $containers = $el.parents().addBack().filter('.qv-object, .qv-object-wrapper, .qv-visualization, .object');
+      if (!$containers.length) $containers = $el;
+      $containers.addClass('rc-helper');
+      if (hide && mode !== 'edit') { $containers.addClass('rc-helper-hide').hide(); } else { $containers.removeClass('rc-helper-hide').show(); }
 
       var self = this;
-      var $target = findTarget(tableId);
+      var $target = findTarget(targetId);
       if (!$target || !$target.length) {
-        if (!self._rdRetry) {
-          self._rdRetry = setInterval(function(){ self.paint($element, layout); }, 1000);
-        }
-        if (mode === "edit") $element.html('<div class="rd-hint">Row Checker: set a valid Target Table Object ID. Looking for: ' + (tableId || '(none)') + '</div>');
-        else $element.empty();
+        if (mode === "edit") $el.html('<div class="rc-hint">Row Checker: set a valid Target Table Object ID. Looking for: ' + (targetId || '(none)') + '</div>');
+        else $el.empty();
         return (qlik.Promise && qlik.Promise.resolve) ? qlik.Promise.resolve() : Promise.resolve();
       }
-      if (self._rdRetry) { clearInterval(self._rdRetry); self._rdRetry = null; }
 
-      if (self._rdPrevTarget && self._rdPrevTarget.get(0) !== $target.get(0)) {
-        try { self._rdPrevTarget.removeClass('rd-row-checker-target'); self._rdPrevTarget.find('.rd-check-cell').remove(); } catch(e){}
-      }
-      self._rdPrevTarget = $target;
-
-      var $grid = findGridRoot($target);
-      $target.addClass('rd-row-checker-target');
-      try {
-        var checkWidth = 32;
-        var order = position === 'right' ? 9999 : -1;
-        var justify = align === 'left' ? 'flex-start' : (align === 'right' ? 'flex-end' : 'center');
-        [$grid.get(0), $target.get(0)].forEach(function(el){ if (el) {
-          el.style.setProperty('--rd-check-color', checkColor);
-          el.style.setProperty('--rd-check-bg', checkBg);
-          el.style.setProperty('--rd-check-width', checkWidth + 'px');
-          el.style.setProperty('--rd-check-order', order);
-          el.style.setProperty('--rd-check-justify', justify);
-        } });
-      } catch(e){}
+      var $grid = gridRoot($target);
+      $target.addClass('rc-target');
+      // CSS vars to control color & alignment; fixed width on cells keeps header aligned
+      var justify = align === 'left' ? 'flex-start' : (align === 'right' ? 'flex-end' : 'center');
+      [$grid.get(0), $target.get(0)].forEach(function(el){ if (el && el.style) {
+        el.style.setProperty('--rc-color', color);
+        el.style.setProperty('--rc-justify', justify);
+        el.style.setProperty('--rc-width', '28px');
+      }});
 
       var app = qlik.currApp && qlik.currApp(this);
       var appId = (app && app.model && app.model.id) || (app && app.id) || "app";
-      var checked = loadChecked(appId, tableId);
+      var set = loadSet(appId, targetId);
 
-      var doRefresh = function () { refresh($grid, checked, appId, tableId); };
-      var burst = debouncedBurst(doRefresh);
-      burst();
+      var doRefresh = function(){ refresh(self, $grid, set, appId, targetId, pos); };
+      var burst = debounced(doRefresh);
+      doRefresh();
 
-      // Delegated handlers (bind once)
-      bindDelegatedHandlers($grid, checked, appId, tableId, burst);
+      // events (delegated)
+      $grid.off('.rc');
+      $grid.on('change.rc', 'input.rc-check', function(e){
+        e.stopPropagation();
+        var $cb = $(this);
+        if ($cb.hasClass('rc-check-all')) {
+          var on = $cb.is(':checked');
+          bodyRows($grid).each(function(){
+            var $row = $(this);
+            var sig = $row.attr('data-rc-sig') || computeSig($row);
+            $row.attr('data-rc-sig', sig);
+            if (on) set.add(sig); else set.delete(sig);
+            $row.toggleClass('rc-row-checked', on);
+            $row.find('input.rc-check').prop('checked', on);
+          });
+          saveSet(appId, targetId, set);
+          return;
+        }
+        var $row = $cb.closest('[role="row"], tr');
+        var sig = $row.attr('data-rc-sig') || computeSig($row);
+        $row.attr('data-rc-sig', sig);
+        var on2 = $cb.is(':checked');
+        if (on2) set.add(sig); else set.delete(sig);
+        $row.toggleClass('rc-row-checked', on2);
+        saveSet(appId, targetId, set);
+      });
 
-      // Observers
-      if (self._rdObs1) try { self._rdObs1.disconnect(); } catch(e){}
-      if (self._rdObs2) try { self._rdObs2.disconnect(); } catch(e){}
-      if (self._rdResize) try { self._rdResize.disconnect(); } catch(e){}
-
-      var obs1 = new MutationObserver(burst);
-      try { obs1.observe($grid.get(0), { childList: true, subtree: true }); } catch(e){}
-      self._rdObs1 = obs1;
-
-      var obs2 = new MutationObserver(burst);
-      try { obs2.observe(document.body, { childList: true, subtree: true }); } catch(e){}
-      self._rdObs2 = obs2;
-
-      if (window.ResizeObserver) {
-        var ro = new ResizeObserver(burst);
-        try { ro.observe($grid.get(0)); } catch(e){}
-        self._rdResize = ro;
-      }
-
-      if (self._rdInterval) { clearInterval(self._rdInterval); }
-      self._rdInterval = setInterval(doRefresh, 2000);
-
-      if (typeof this.on === 'function') {
-        this.on('destroy', function () {
-          try { obs1 && obs1.disconnect(); } catch(e){}
-          try { obs2 && obs2.disconnect(); } catch(e){}
-          try { self._rdResize && self._rdResize.disconnect(); } catch(e){}
-          try { clearInterval(self._rdInterval); } catch(e){}
-          try { clearInterval(self._rdRetry); self._rdRetry = null; } catch(e){}
-          try { $grid.off('click.rd'); } catch(e){}
-        });
-      }
+      // lightweight observer (guarded)
+      if (self._obs) try{ self._obs.disconnect(); }catch(e){}
+      var o = new MutationObserver(function(){ if (!self._painting) burst(); });
+      try { o.observe($grid.get(0), { childList:true, subtree:true }); } catch(e){}
+      self._obs = o;
 
       return (qlik.Promise && qlik.Promise.resolve) ? qlik.Promise.resolve() : Promise.resolve();
     }
