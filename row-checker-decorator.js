@@ -1,4 +1,4 @@
-define(["qlik", "jquery"], function (qlik, $) {
+define(["qlik", "jquery", "css!./style.css"], function (qlik, $) {
   "use strict";
 
   function getModeSafe() {
@@ -85,7 +85,7 @@ define(["qlik", "jquery"], function (qlik, $) {
     return h;
   }
 
-  function ensureHeaderCheckboxCell($root) {
+  function ensureHeaderCheckboxCell($root, position) {
     var $rows = $root.find('[role="row"], tr').filter(function () { return isHeaderRow($(this)); });
     var $header = $rows.first();
     $rows.not($header).find('.rd-check-cell').remove();
@@ -94,7 +94,12 @@ define(["qlik", "jquery"], function (qlik, $) {
     if ($chk.length === 0) {
       var $first = $('<div class="rd-check-cell rd-check-header" role="columnheader" aria-label="Marked"></div>');
       if ($header.is('tr')) $first = $('<th class="rd-check-cell rd-check-header" scope="col"></th>');
-      $chk = $first.appendTo($header);
+      $chk = $first;
+    }
+    if (position === 'right') {
+      $chk.appendTo($header);
+    } else {
+      $chk.prependTo($header);
     }
     if ($chk.find('.rd-check-wrap').length === 0) {
       $('<div class="rd-check-wrap"></div>').appendTo($chk);
@@ -104,7 +109,7 @@ define(["qlik", "jquery"], function (qlik, $) {
     }
   }
 
-  function injectCheckboxes($root, checkedSet, appId, objId) {
+  function injectCheckboxes($root, checkedSet, appId, objId, position) {
     $root.find('[role="row"], tr').each(function () {
       var $row = $(this);
       if (isHeaderRow($row)) return;
@@ -113,7 +118,11 @@ define(["qlik", "jquery"], function (qlik, $) {
       if ($cell.length === 0) {
         $cell = $('<div class="rd-check-cell" role="cell"></div>');
         if ($row.is('tr')) $cell = $('<td class="rd-check-cell"></td>');
-        $row.append($cell);
+      }
+      if (position === 'right') {
+        $cell.appendTo($row);
+      } else {
+        $cell.prependTo($row);
       }
       if ($cell.find('.rd-check-wrap').length === 0) {
         $('<div class="rd-check-wrap"></div>').appendTo($cell);
@@ -135,10 +144,10 @@ define(["qlik", "jquery"], function (qlik, $) {
     });
   }
 
-  function refresh($grid, checkedSet, appId, objId) {
+  function refresh($grid, checkedSet, appId, objId, position) {
     if (!$grid || !$grid.length) return;
-    ensureHeaderCheckboxCell($grid);
-    injectCheckboxes($grid, checkedSet, appId, objId);
+    ensureHeaderCheckboxCell($grid, position);
+    injectCheckboxes($grid, checkedSet, appId, objId, position);
     syncHeaderCheckbox($grid, checkedSet);
   }
 
@@ -296,7 +305,7 @@ define(["qlik", "jquery"], function (qlik, $) {
       var appId = (app && app.model && app.model.id) || (app && app.id) || "app";
       var checked = loadChecked(appId, tableId);
 
-      var doRefresh = function () { refresh($grid, checked, appId, tableId); };
+      var doRefresh = function () { refresh($grid, checked, appId, tableId, position); };
       var burst = debouncedBurst(doRefresh);
       burst();
 
