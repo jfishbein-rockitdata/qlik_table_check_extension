@@ -135,11 +135,30 @@ define(["qlik", "jquery"], function (qlik, $) {
     });
   }
 
-  function refresh($grid, checkedSet, appId, objId) {
+  function refresh($grid, checkedSet, appId, objId, styles) {
     if (!$grid || !$grid.length) return;
     ensureHeaderCheckboxCell($grid);
     injectCheckboxes($grid, checkedSet, appId, objId);
     syncHeaderCheckbox($grid, checkedSet);
+
+    if (styles) {
+      var justify = styles.justify;
+      var order = styles.order;
+      var color = styles.color;
+      var bg = styles.bg;
+      var width = styles.width;
+      $grid.find('.rd-check-cell').each(function () {
+        var el = this;
+        if (width != null) el.style.setProperty('--rd-check-width', width + 'px');
+        el.style.setProperty('--rd-check-color', color);
+        el.style.setProperty('--rd-check-bg', bg);
+        el.style.setProperty('--rd-check-order', order);
+        el.style.setProperty('--rd-check-justify', justify);
+      });
+      $grid.find('.rd-check-wrap').each(function () {
+        this.style.setProperty('--rd-check-justify', justify);
+      });
+    }
   }
 
   function setAllRows($grid, checkedSet, checked) {
@@ -279,10 +298,11 @@ define(["qlik", "jquery"], function (qlik, $) {
 
       var $grid = findGridRoot($target);
       $target.addClass('rd-row-checker-target');
+      var checkWidth = 32;
+      var order = position === 'right' ? 9999 : -1;
+      var justify = align === 'left' ? 'flex-start' : (align === 'right' ? 'flex-end' : 'center');
+      var styles = { color: checkColor, bg: checkBg, order: order, justify: justify, width: checkWidth };
       try {
-        var checkWidth = 32;
-        var order = position === 'right' ? 9999 : -1;
-        var justify = align === 'left' ? 'flex-start' : (align === 'right' ? 'flex-end' : 'center');
         [$grid.get(0), $target.get(0)].forEach(function(el){ if (el) {
           el.style.setProperty('--rd-check-color', checkColor);
           el.style.setProperty('--rd-check-bg', checkBg);
@@ -296,7 +316,7 @@ define(["qlik", "jquery"], function (qlik, $) {
       var appId = (app && app.model && app.model.id) || (app && app.id) || "app";
       var checked = loadChecked(appId, tableId);
 
-      var doRefresh = function () { refresh($grid, checked, appId, tableId); };
+      var doRefresh = function () { refresh($grid, checked, appId, tableId, styles); };
       var burst = debouncedBurst(doRefresh);
       burst();
 
